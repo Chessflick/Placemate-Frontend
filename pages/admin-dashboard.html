@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PlaceMate — Admin Dashboard</title>
+    <link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+<div class="app-layout">
+    <aside class="sidebar">
+        <div class="sidebar-logo">
+            <div class="brand"><div class="brand-dot">🎓</div>PlaceMate</div>
+            <div class="sidebar-role">Admin Portal</div>
+        </div>
+        <nav class="sidebar-nav">
+            <div class="nav-section">Management</div>
+            <a href="admin-dashboard.html" class="active"><span class="icon">🏠</span> Dashboard</a>
+            <a href="admin-students.html"><span class="icon">👥</span> Students</a>
+            <a href="admin-companies.html"><span class="icon">🏢</span> Companies</a>
+            <a href="admin-jobs.html"><span class="icon">💼</span> Job Postings</a>
+            <a href="admin-applications.html"><span class="icon">📋</span> Applications</a>
+        </nav>
+        <div class="sidebar-bottom">
+            <div class="user-info">
+                <div class="avatar" style="background:#6366f1;">A</div>
+                <div><div style="font-weight:600;color:#e2e8f0;font-size:13px;">Admin</div><div style="font-size:11px;" id="sidebar-email"></div></div>
+            </div>
+            <div class="logout-btn" onclick="Auth.logout()">🚪 Logout</div>
+        </div>
+    </aside>
+
+    <div class="main-content">
+        <div class="topbar">
+            <div class="topbar-title">Admin Dashboard</div>
+        </div>
+
+        <div class="page-body">
+            <div class="stats-grid">
+                <div class="stat-card"><div class="stat-icon">👥</div><div class="stat-label">Total Students</div><div class="stat-value" id="stat-students">—</div></div>
+                <div class="stat-card"><div class="stat-icon">🏢</div><div class="stat-label">Companies</div><div class="stat-value" id="stat-companies">—</div></div>
+                <div class="stat-card"><div class="stat-icon">💼</div><div class="stat-label">Open Jobs</div><div class="stat-value" id="stat-jobs">—</div></div>
+                <div class="stat-card"><div class="stat-icon">📋</div><div class="stat-label">Applications</div><div class="stat-value" id="stat-apps">—</div></div>
+                <div class="stat-card"><div class="stat-icon">✅</div><div class="stat-label">Placed</div><div class="stat-value" id="stat-placed">—</div></div>
+            </div>
+
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+                <!-- Recent Applications -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3>Recent Applications</h3>
+                        <a href="admin-applications.html" style="font-size:13px;">View all →</a>
+                    </div>
+                    <div class="table-wrap">
+                        <table>
+                            <thead><tr><th>Student</th><th>Job</th><th>Status</th></tr></thead>
+                            <tbody id="recent-apps"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Quick Actions -->
+                <div class="card card-body">
+                    <h3 style="margin-bottom:16px;">Quick Actions</h3>
+                    <div style="display:flex;flex-direction:column;gap:10px;">
+                        <a href="admin-companies.html" class="btn btn-outline">🏢 Add New Company</a>
+                        <a href="admin-jobs.html" class="btn btn-outline">💼 Post a Job</a>
+                        <a href="admin-students.html" class="btn btn-outline">👥 View All Students</a>
+                        <a href="admin-applications.html" class="btn btn-outline">📋 Manage Applications</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="../js/api.js"></script>
+<script>
+    requireAuth('ADMIN');
+    document.getElementById('sidebar-email').textContent = getEmail();
+
+    async function loadDashboard() {
+        try {
+            const [students, companies, jobs, apps] = await Promise.all([
+                AdminAPI.getStudents(),
+                AdminAPI.getCompanies(),
+                JobsAPI.getAllJobs(),
+                AdminAPI.getAllApplications(),
+            ]);
+
+            document.getElementById('stat-students').textContent = students.length;
+            document.getElementById('stat-companies').textContent = companies.length;
+            document.getElementById('stat-jobs').textContent = jobs.filter(j => j.status === 'OPEN').length;
+            document.getElementById('stat-apps').textContent = apps.length;
+            document.getElementById('stat-placed').textContent = students.filter(s => s.placementStatus === 'PLACED').length;
+
+            const recentApps = apps.slice(-5).reverse();
+            document.getElementById('recent-apps').innerHTML = recentApps.length
+                ? recentApps.map(a => `
+                    <tr>
+                        <td><strong>${a.studentName}</strong><br><span style="font-size:12px;color:var(--text-muted);">${a.rollNumber}</span></td>
+                        <td>${a.jobTitle}<br><span style="font-size:12px;color:var(--text-muted);">${a.companyName}</span></td>
+                        <td>${statusBadge(a.status)}</td>
+                    </tr>`).join('')
+                : `<tr><td colspan="3"><div class="empty-state"><div class="empty-icon">📭</div><p>No applications yet</p></div></td></tr>`;
+        } catch (err) {
+            showToast(err.message, 'error');
+        }
+    }
+
+    loadDashboard();
+</script>
+</body>
+</html>

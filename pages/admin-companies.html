@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PlaceMate — Companies</title>
+    <link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+<div class="app-layout">
+    <aside class="sidebar">
+        <div class="sidebar-logo">
+            <div class="brand"><div class="brand-dot">🎓</div>PlaceMate</div>
+            <div class="sidebar-role">Admin Portal</div>
+        </div>
+        <nav class="sidebar-nav">
+            <div class="nav-section">Management</div>
+            <a href="admin-dashboard.html"><span class="icon">🏠</span> Dashboard</a>
+            <a href="admin-students.html"><span class="icon">👥</span> Students</a>
+            <a href="admin-companies.html" class="active"><span class="icon">🏢</span> Companies</a>
+            <a href="admin-jobs.html"><span class="icon">💼</span> Job Postings</a>
+            <a href="admin-applications.html"><span class="icon">📋</span> Applications</a>
+        </nav>
+        <div class="sidebar-bottom">
+            <div class="user-info">
+                <div class="avatar" style="background:#6366f1;">A</div>
+                <div><div style="font-weight:600;color:#e2e8f0;font-size:13px;">Admin</div><div style="font-size:11px;" id="sidebar-email"></div></div>
+            </div>
+            <div class="logout-btn" onclick="Auth.logout()">🚪 Logout</div>
+        </div>
+    </aside>
+
+    <div class="main-content">
+        <div class="topbar">
+            <div class="topbar-title">Companies</div>
+            <div class="topbar-actions">
+                <button class="btn btn-primary" onclick="openCompanyModal()">+ Add Company</button>
+            </div>
+        </div>
+
+        <div class="page-body">
+            <div class="card">
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Company</th>
+                                <th>Industry</th>
+                                <th>Location</th>
+                                <th>Website</th>
+                                <th>Jobs</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="companies-tbody">
+                            <tr><td colspan="6" class="loader">Loading…</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Company Modal -->
+<div class="modal-overlay" id="company-modal">
+    <div class="modal">
+        <div class="modal-header">
+            <h3 id="modal-title">Add Company</h3>
+            <button class="modal-close" onclick="closeModal('company-modal')">✕</button>
+        </div>
+        <div class="modal-body">
+            <input type="hidden" id="company-id">
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Company Name *</label>
+                    <input type="text" id="c-name" placeholder="Infosys Ltd.">
+                </div>
+                <div class="form-group">
+                    <label>Industry</label>
+                    <input type="text" id="c-industry" placeholder="IT Services">
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Location</label>
+                    <input type="text" id="c-location" placeholder="Bangalore, India">
+                </div>
+                <div class="form-group">
+                    <label>Website</label>
+                    <input type="url" id="c-website" placeholder="https://infosys.com">
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Logo URL</label>
+                <input type="url" id="c-logo" placeholder="https://...">
+            </div>
+            <div class="form-group">
+                <label>Description</label>
+                <textarea id="c-desc" placeholder="Brief about the company…"></textarea>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-outline" onclick="closeModal('company-modal')">Cancel</button>
+            <button class="btn btn-primary" onclick="saveCompany()">Save Company</button>
+        </div>
+    </div>
+</div>
+
+<script src="../js/api.js"></script>
+<script>
+    requireAuth('ADMIN');
+    document.getElementById('sidebar-email').textContent = getEmail();
+
+    async function loadCompanies() {
+        try {
+            const companies = await AdminAPI.getCompanies();
+            renderCompanies(companies);
+        } catch (err) {
+            showToast(err.message, 'error');
+        }
+    }
+
+    function renderCompanies(list) {
+        const tbody = document.getElementById('companies-tbody');
+        if (!list.length) {
+            tbody.innerHTML = `<tr><td colspan="6"><div class="empty-state"><div class="empty-icon">🏢</div><p>No companies added yet</p></div></td></tr>`;
+            return;
+        }
+        tbody.innerHTML = list.map(c => `
+            <tr>
+                <td>
+                    <div style="display:flex;align-items:center;gap:10px;">
+                        <div class="company-logo" style="width:34px;height:34px;">${c.logoUrl ? `<img src="${c.logoUrl}" alt="">` : '🏢'}</div>
+                        <strong>${c.name}</strong>
+                    </div>
+                </td>
+                <td>${c.industry || '—'}</td>
+                <td>${c.location || '—'}</td>
+                <td>${c.website ? `<a href="${c.website}" target="_blank" style="font-size:13px;">Visit ↗</a>` : '—'}</td>
+                <td><span class="badge badge-open">${c.jobCount} jobs</span></td>
+                <td style="display:flex;gap:6px;">
+                    <button class="btn btn-outline btn-sm" onclick="editCompany(${c.id})">Edit</button>
+                    <button class="btn btn-danger btn-sm" onclick="deleteCompany(${c.id}, '${c.name}')">Delete</button>
+                </td>
+            </tr>
+        `).join('');
+    }
+
+    function openCompanyModal(id) {
+        document.getElementById('modal-title').textContent = id ? 'Edit Company' : 'Add Company';
+        document.getElementById('company-id').value = id || '';
+        if (!id) {
+            ['c-name','c-industry','c-location','c-website','c-logo','c-desc'].forEach(id => document.getElementById(id).value = '');
+        }
+        openModal('company-modal');
+    }
+
+    async function editCompany(id) {
+        try {
+            const c = await AdminAPI.getCompany(id);
+            document.getElementById('company-id').value = c.id;
+            document.getElementById('c-name').value     = c.name || '';
+            document.getElementById('c-industry').value = c.industry || '';
+            document.getElementById('c-location').value = c.location || '';
+            document.getElementById('c-website').value  = c.website || '';
+            document.getElementById('c-logo').value     = c.logoUrl || '';
+            document.getElementById('c-desc').value     = c.description || '';
+            document.getElementById('modal-title').textContent = 'Edit Company';
+            openModal('company-modal');
+        } catch (err) {
+            showToast(err.message, 'error');
+        }
+    }
+
+    async function saveCompany() {
+        const id = document.getElementById('company-id').value;
+        const data = {
+            name:        document.getElementById('c-name').value,
+            industry:    document.getElementById('c-industry').value,
+            location:    document.getElementById('c-location').value,
+            website:     document.getElementById('c-website').value,
+            logoUrl:     document.getElementById('c-logo').value,
+            description: document.getElementById('c-desc').value,
+        };
+        if (!data.name) { showToast('Company name is required', 'error'); return; }
+        try {
+            id ? await AdminAPI.updateCompany(id, data) : await AdminAPI.addCompany(data);
+            showToast(id ? 'Company updated!' : 'Company added!', 'success');
+            closeModal('company-modal');
+            loadCompanies();
+        } catch (err) {
+            showToast(err.message, 'error');
+        }
+    }
+
+    async function deleteCompany(id, name) {
+        if (!confirm(`Delete company "${name}"?`)) return;
+        try {
+            await AdminAPI.deleteCompany(id);
+            showToast('Company deleted', 'success');
+            loadCompanies();
+        } catch (err) {
+            showToast(err.message, 'error');
+        }
+    }
+
+    loadCompanies();
+</script>
+</body>
+</html>

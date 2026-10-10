@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PlaceMate — Browse Jobs</title>
+    <link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+<div class="app-layout">
+    <aside class="sidebar">
+        <div class="sidebar-logo">
+            <div class="brand"><div class="brand-dot">🎓</div>PlaceMate</div>
+            <div class="sidebar-role">Student Portal</div>
+        </div>
+        <nav class="sidebar-nav">
+            <div class="nav-section">Menu</div>
+            <a href="student-dashboard.html"><span class="icon">🏠</span> Dashboard</a>
+            <a href="student-jobs.html" class="active"><span class="icon">💼</span> Browse Jobs</a>
+            <a href="student-applications.html"><span class="icon">📋</span> My Applications</a>
+            <a href="student-profile.html"><span class="icon">👤</span> My Profile</a>
+        </nav>
+        <div class="sidebar-bottom">
+            <div class="user-info">
+                <div class="avatar">S</div>
+                <div><div style="font-weight:600;color:#e2e8f0;font-size:13px;" id="sidebar-name">Student</div><div style="font-size:11px;" id="sidebar-email"></div></div>
+            </div>
+            <div class="logout-btn" onclick="Auth.logout()">🚪 Logout</div>
+        </div>
+    </aside>
+
+    <div class="main-content">
+        <div class="topbar">
+            <div class="topbar-title">Browse Jobs</div>
+            <div class="topbar-actions">
+                <div class="search-bar">
+                    <span>🔍</span>
+                    <input type="text" id="search-input" placeholder="Search jobs, companies…" oninput="filterJobs()">
+                </div>
+            </div>
+        </div>
+
+        <div class="page-body">
+            <div id="jobs-grid" class="jobs-grid">
+                <div class="loader">Loading jobs…</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Job Detail Modal -->
+<div class="modal-overlay" id="job-modal">
+    <div class="modal">
+        <div class="modal-header">
+            <h3 id="modal-job-title">Job Details</h3>
+            <button class="modal-close" onclick="closeModal('job-modal')">✕</button>
+        </div>
+        <div class="modal-body" id="modal-job-body"></div>
+        <div class="modal-footer">
+            <button class="btn btn-outline" onclick="closeModal('job-modal')">Close</button>
+            <button class="btn btn-primary" id="apply-btn">Apply Now</button>
+        </div>
+    </div>
+</div>
+
+<script src="../js/api.js"></script>
+<script>
+    requireAuth('STUDENT');
+    document.getElementById('sidebar-email').textContent = getEmail();
+
+    let allJobs = [];
+    let currentJobId = null;
+
+    async function loadJobs() {
+        try {
+            const [jobs, profile] = await Promise.all([JobsAPI.getOpenJobs(), StudentAPI.getProfile()]);
+            allJobs = jobs;
+            document.getElementById('sidebar-name').textContent = profile.fullName || 'Student';
+            renderJobs(jobs);
+        } catch (err) {
+            showToast(err.message, 'error');
+            document.getElementById('jobs-grid').innerHTML = `<div class="empty-state"><div class="empty-icon">⚠️</div><p>Failed to load jobs</p></div>`;
+        }
+    }
+
+    function filterJobs() {
+        const q = document.getElementById('search-input').value.toLowerCase();
+        const filtered = allJobs.filter(j =>
+            j.title.toLowerCase().includes(q) ||
+            j.companyName.toLowerCase().includes(q) ||
+            (j.location || '').toLowerCase().includes(q)
+        );
+        renderJobs(filtered);
+    }
+
+    function renderJobs(jobs) {
+        const grid = document.getElementById('jobs-grid');
+        if (!jobs.length) {
+            grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1"><div class="empty-icon">🔍</div><p>No jobs found</p></div>`;
+            return;
+        }
+        grid.innerHTML = jobs.map(j => `
+            <div class="job-card">
+                <div class="job-card-header">
+                    <div class="company-logo">${j.companyLogo ? `<img src="${j.companyLogo}" alt="">` : '🏢'}</div>
+                    <div class="job-meta">
+                        <h4>${j.title}</h4>
+                        <div class="company-name">${j.companyName}</div>
+                    </div>
+                </div>
+                <div class="job-tags">
+                    ${j.location ? `<span class="tag">📍 ${j.location}</span>` : ''}
+                    ${j.jobType  ? `<span class="tag">🕒 ${j.jobType}</span>` : ''}
+                    ${j.minCgpa  ? `<span class="tag">📊 Min CGPA: ${j.minCgpa}</span>` : ''}
+                </div>
+                <div class="job-footer">
+                    <div class="ctc">${j.ctc ? `₹${j.ctc} LPA` : 'CTC TBD'}</div>
+                    <div style="display:flex;gap:8px;align-items:center;">
+                        <span style="font-size:12px;color:var(--text-muted)">Last date: ${fmtDate(j.lastDateToApply)}</span>
+                        ${j.alreadyApplied
+                            ? `<span class="badge badge-applied">Applied</span>`
+                            : `<button class="btn btn-primary btn-sm" onclick="openJobModal(${j.id})">View</button>`}
+                    </div>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    function openJobModal(jobId) {
+        currentJobId = jobId;
+        const job = allJobs.find(j => j.id === jobId);
+        if (!job) return;
+
+        document.getElementById('modal-job-title').textContent = job.title;
+        document.getElementById('modal-job-body').innerHTML = `
+            <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
+                <div class="company-logo" style="width:52px;height:52px;">${job.companyLogo ? `<img src="${job.companyLogo}" alt="">` : '🏢'}</div>
+                <div>
+                    <div style="font-size:17px;font-weight:700;">${job.title}</div>
+                    <div style="color:var(--text-muted);">${job.companyName} · ${job.location || 'Location TBD'}</div>
+                </div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
+                <div style="background:var(--bg);border-radius:8px;padding:12px;">
+                    <div style="font-size:12px;color:var(--text-muted);">CTC</div>
+                    <div style="font-weight:700;color:var(--success);font-size:16px;">${job.ctc ? `₹${job.ctc} LPA` : 'Not disclosed'}</div>
+                </div>
+                <div style="background:var(--bg);border-radius:8px;padding:12px;">
+                    <div style="font-size:12px;color:var(--text-muted);">Job Type</div>
+                    <div style="font-weight:600;">${job.jobType || '—'}</div>
+                </div>
+                <div style="background:var(--bg);border-radius:8px;padding:12px;">
+                    <div style="font-size:12px;color:var(--text-muted);">Min. CGPA</div>
+                    <div style="font-weight:600;">${job.minCgpa || 'No minimum'}</div>
+                </div>
+                <div style="background:var(--bg);border-radius:8px;padding:12px;">
+                    <div style="font-size:12px;color:var(--text-muted);">Last Date</div>
+                    <div style="font-weight:600;">${fmtDate(job.lastDateToApply)}</div>
+                </div>
+            </div>
+            ${job.description ? `<div style="margin-bottom:12px;"><strong>Description</strong><p style="margin-top:6px;color:var(--text-muted);">${job.description}</p></div>` : ''}
+            ${job.eligibility ? `<div><strong>Eligibility</strong><p style="margin-top:6px;color:var(--text-muted);">${job.eligibility}</p></div>` : ''}
+        `;
+
+        const applyBtn = document.getElementById('apply-btn');
+        applyBtn.disabled = job.alreadyApplied;
+        applyBtn.textContent = job.alreadyApplied ? 'Already Applied' : 'Apply Now';
+        applyBtn.onclick = () => applyForJob(jobId);
+
+        openModal('job-modal');
+    }
+
+    async function applyForJob(jobId) {
+        const btn = document.getElementById('apply-btn');
+        btn.disabled = true; btn.textContent = 'Applying…';
+        try {
+            await StudentAPI.applyForJob(jobId);
+            showToast('Application submitted!', 'success');
+            closeModal('job-modal');
+            await loadJobs();
+        } catch (err) {
+            showToast(err.message, 'error');
+            btn.disabled = false; btn.textContent = 'Apply Now';
+        }
+    }
+
+    loadJobs();
+</script>
+</body>
+</html>

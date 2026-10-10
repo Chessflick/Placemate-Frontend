@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PlaceMate — Student Dashboard</title>
+    <link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+<div class="app-layout">
+
+    <!-- Sidebar -->
+    <aside class="sidebar">
+        <div class="sidebar-logo">
+            <div class="brand"><div class="brand-dot">🎓</div>PlaceMate</div>
+            <div class="sidebar-role">Student Portal</div>
+        </div>
+        <nav class="sidebar-nav">
+            <div class="nav-section">Menu</div>
+            <a href="student-dashboard.html" class="active"><span class="icon">🏠</span> Dashboard</a>
+            <a href="student-jobs.html"><span class="icon">💼</span> Browse Jobs</a>
+            <a href="student-applications.html"><span class="icon">📋</span> My Applications</a>
+            <a href="student-profile.html"><span class="icon">👤</span> My Profile</a>
+        </nav>
+        <div class="sidebar-bottom">
+            <div class="user-info">
+                <div class="avatar" id="sidebar-avatar">S</div>
+                <div>
+                    <div id="sidebar-name" style="font-weight:600;color:#e2e8f0;font-size:13px;">Student</div>
+                    <div style="font-size:11px;" id="sidebar-email"></div>
+                </div>
+            </div>
+            <div class="logout-btn" onclick="Auth.logout()">🚪 Logout</div>
+        </div>
+    </aside>
+
+    <!-- Main -->
+    <div class="main-content">
+        <div class="topbar">
+            <div class="topbar-title">Dashboard</div>
+            <div class="topbar-actions">
+                <a href="student-jobs.html" class="btn btn-primary btn-sm">Browse Jobs</a>
+            </div>
+        </div>
+
+        <div class="page-body">
+            <!-- Stats -->
+            <div class="stats-grid" id="stats-grid">
+                <div class="stat-card"><div class="stat-icon">📤</div><div class="stat-label">Applied</div><div class="stat-value" id="s-applied">—</div></div>
+                <div class="stat-card"><div class="stat-icon">⭐</div><div class="stat-label">Shortlisted</div><div class="stat-value" id="s-shortlisted">—</div></div>
+                <div class="stat-card"><div class="stat-icon">✅</div><div class="stat-label">Selected</div><div class="stat-value" id="s-selected">—</div></div>
+                <div class="stat-card"><div class="stat-icon">🎯</div><div class="stat-label">Status</div><div class="stat-value" id="s-status" style="font-size:16px;">—</div></div>
+            </div>
+
+            <!-- Recent Applications -->
+            <div class="card">
+                <div class="card-header">
+                    <h3>Recent Applications</h3>
+                    <a href="student-applications.html" style="font-size:13px;">View all →</a>
+                </div>
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Company</th>
+                                <th>Role</th>
+                                <th>Applied On</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="recent-apps">
+                            <tr><td colspan="4" class="loader">Loading…</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="../js/api.js"></script>
+<script>
+    requireAuth('STUDENT');
+
+    document.getElementById('sidebar-email').textContent = getEmail();
+
+    async function loadDashboard() {
+        try {
+            const [apps, profile] = await Promise.all([
+                StudentAPI.getApplications(),
+                StudentAPI.getProfile()
+            ]);
+
+            // Update sidebar name
+            const name = profile.fullName || 'Student';
+            document.getElementById('sidebar-name').textContent = name;
+            document.getElementById('sidebar-avatar').textContent = name[0].toUpperCase();
+
+            // Stats
+            const counts = { APPLIED: 0, SHORTLISTED: 0, SELECTED: 0, REJECTED: 0 };
+            apps.forEach(a => counts[a.status]++);
+            document.getElementById('s-applied').textContent = counts.APPLIED;
+            document.getElementById('s-shortlisted').textContent = counts.SHORTLISTED;
+            document.getElementById('s-selected').textContent = counts.SELECTED;
+            document.getElementById('s-status').innerHTML = statusBadge(profile.placementStatus || 'NOT_PLACED');
+
+            // Recent 5 applications
+            const tbody = document.getElementById('recent-apps');
+            if (!apps.length) {
+                tbody.innerHTML = `<tr><td colspan="4"><div class="empty-state"><div class="empty-icon">📭</div><p>No applications yet. <a href="student-jobs.html">Browse jobs</a></p></div></td></tr>`;
+                return;
+            }
+            tbody.innerHTML = apps.slice(0, 5).map(a => `
+                <tr>
+                    <td><strong>${a.companyName}</strong></td>
+                    <td>${a.jobTitle}</td>
+                    <td>${fmtDate(a.appliedAt)}</td>
+                    <td>${statusBadge(a.status)}</td>
+                </tr>
+            `).join('');
+        } catch (err) {
+            showToast(err.message, 'error');
+        }
+    }
+
+    loadDashboard();
+</script>
+</body>
+</html>

@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PlaceMate — Applications</title>
+    <link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+<div class="app-layout">
+    <aside class="sidebar">
+        <div class="sidebar-logo">
+            <div class="brand"><div class="brand-dot">🎓</div>PlaceMate</div>
+            <div class="sidebar-role">Admin Portal</div>
+        </div>
+        <nav class="sidebar-nav">
+            <div class="nav-section">Management</div>
+            <a href="admin-dashboard.html"><span class="icon">🏠</span> Dashboard</a>
+            <a href="admin-students.html"><span class="icon">👥</span> Students</a>
+            <a href="admin-companies.html"><span class="icon">🏢</span> Companies</a>
+            <a href="admin-jobs.html"><span class="icon">💼</span> Job Postings</a>
+            <a href="admin-applications.html" class="active"><span class="icon">📋</span> Applications</a>
+        </nav>
+        <div class="sidebar-bottom">
+            <div class="user-info">
+                <div class="avatar" style="background:#6366f1;">A</div>
+                <div><div style="font-weight:600;color:#e2e8f0;font-size:13px;">Admin</div><div style="font-size:11px;" id="sidebar-email"></div></div>
+            </div>
+            <div class="logout-btn" onclick="Auth.logout()">🚪 Logout</div>
+        </div>
+    </aside>
+
+    <div class="main-content">
+        <div class="topbar">
+            <div class="topbar-title">Applications</div>
+            <div class="topbar-actions">
+                <div class="search-bar">
+                    <span>🔍</span>
+                    <input type="text" id="search" placeholder="Search…" oninput="filterApps()">
+                </div>
+                <select id="status-filter" onchange="filterApps()" style="padding:7px 12px;border-radius:8px;border:1.5px solid var(--border);font-family:inherit;font-size:13.5px;">
+                    <option value="">All Status</option>
+                    <option>APPLIED</option>
+                    <option>SHORTLISTED</option>
+                    <option>SELECTED</option>
+                    <option>REJECTED</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="page-body">
+            <div class="card">
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Student</th>
+                                <th>Company / Role</th>
+                                <th>CGPA</th>
+                                <th>Applied On</th>
+                                <th>Status</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="apps-tbody">
+                            <tr><td colspan="6" class="loader">Loading…</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Status Update Modal -->
+<div class="modal-overlay" id="status-modal">
+    <div class="modal" style="max-width:420px;">
+        <div class="modal-header">
+            <h3>Update Application Status</h3>
+            <button class="modal-close" onclick="closeModal('status-modal')">✕</button>
+        </div>
+        <div class="modal-body">
+            <input type="hidden" id="app-id">
+            <div style="margin-bottom:14px;">
+                <div style="font-weight:600;" id="app-info">—</div>
+            </div>
+            <div class="form-group">
+                <label>New Status</label>
+                <select id="new-status">
+                    <option value="APPLIED">Applied</option>
+                    <option value="SHORTLISTED">Shortlisted</option>
+                    <option value="SELECTED">Selected</option>
+                    <option value="REJECTED">Rejected</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Remarks (optional)</label>
+                <textarea id="remarks" rows="2" placeholder="e.g. Cleared aptitude round…"></textarea>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-outline" onclick="closeModal('status-modal')">Cancel</button>
+            <button class="btn btn-primary" onclick="updateStatus()">Update Status</button>
+        </div>
+    </div>
+</div>
+
+<script src="../js/api.js"></script>
+<script>
+    requireAuth('ADMIN');
+    document.getElementById('sidebar-email').textContent = getEmail();
+
+    let allApps = [];
+
+    async function loadApps() {
+        try {
+            allApps = await AdminAPI.getAllApplications();
+            renderApps(allApps);
+        } catch (err) {
+            showToast(err.message, 'error');
+        }
+    }
+
+    function filterApps() {
+        const q = document.getElementById('search').value.toLowerCase();
+        const st = document.getElementById('status-filter').value;
+        const filtered = allApps.filter(a => {
+            const matchQ = !q ||
+                (a.studentName || '').toLowerCase().includes(q) ||
+                (a.companyName || '').toLowerCase().includes(q) ||
+                (a.jobTitle || '').toLowerCase().includes(q) ||
+                (a.rollNumber || '').toLowerCase().includes(q);
+            const matchSt = !st || a.status === st;
+            return matchQ && matchSt;
+        });
+        renderApps(filtered);
+    }
+
+    function renderApps(apps) {
+        const tbody = document.getElementById('apps-tbody');
+        if (!apps.length) {
+            tbody.innerHTML = `<tr><td colspan="6"><div class="empty-state"><div class="empty-icon">📭</div><p>No applications found</p></div></td></tr>`;
+            return;
+        }
+        tbody.innerHTML = apps.map(a => `
+            <tr>
+                <td>
+                    <div style="font-weight:600;">${a.studentName}</div>
+                    <div style="font-size:12px;color:var(--text-muted);">${a.rollNumber} · ${a.branch}</div>
+                </td>
+                <td>
+                    <div style="font-weight:600;">${a.companyName}</div>
+                    <div style="font-size:12px;color:var(--text-muted);">${a.jobTitle}</div>
+                </td>
+                <td><strong>${a.cgpa || '—'}</strong></td>
+                <td style="font-size:13px;">${fmtDate(a.appliedAt)}</td>
+                <td>${statusBadge(a.status)}</td>
+                <td>
+                    <button class="btn btn-outline btn-sm" onclick="openStatusModal(${a.id}, '${a.studentName}', '${a.jobTitle}', '${a.status}')">
+                        Update
+                    </button>
+                </td>
+            </tr>
+        `).join('');
+    }
+
+    function openStatusModal(id, studentName, jobTitle, currentStatus) {
+        document.getElementById('app-id').value = id;
+        document.getElementById('app-info').textContent = `${studentName} → ${jobTitle}`;
+        document.getElementById('new-status').value = currentStatus;
+        document.getElementById('remarks').value = '';
+        openModal('status-modal');
+    }
+
+    async function updateStatus() {
+        const id = document.getElementById('app-id').value;
+        const data = {
+            status: document.getElementById('new-status').value,
+            adminRemarks: document.getElementById('remarks').value,
+        };
+        try {
+            await AdminAPI.updateStatus(id, data);
+            showToast('Status updated!', 'success');
+            closeModal('status-modal');
+            loadApps();
+        } catch (err) {
+            showToast(err.message, 'error');
+        }
+    }
+
+    loadApps();
+</script>
+</body>
+</html>

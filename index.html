@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PlaceMate — Login</title>
+    <link rel="stylesheet" href="css/style.css">
+    <style>
+        .tab-bar {
+            display: flex;
+            background: #f3f4f6;
+            border-radius: 10px;
+            padding: 4px;
+            margin-bottom: 24px;
+        }
+        .tab-btn {
+            flex: 1; padding: 8px;
+            border: none; background: none;
+            border-radius: 8px; font-size: 14px;
+            font-family: inherit; font-weight: 500;
+            cursor: pointer; color: var(--text-muted);
+            transition: all .15s;
+        }
+        .tab-btn.active {
+            background: var(--surface);
+            color: var(--text);
+            box-shadow: 0 1px 4px rgba(0,0,0,.1);
+        }
+        .tab-pane { display: none; }
+        .tab-pane.active { display: block; }
+    </style>
+</head>
+<body>
+<div class="auth-page">
+    <div class="auth-card">
+        <div class="auth-logo">
+            <div class="logo-icon">🎓</div>
+            <div class="brand-name">PlaceMate</div>
+            <div class="brand-sub">College Placement Management System</div>
+        </div>
+
+        <!-- Tab Bar -->
+        <div class="tab-bar">
+            <button class="tab-btn active" onclick="switchTab('login')">Login</button>
+            <button class="tab-btn" onclick="switchTab('register')">Register</button>
+        </div>
+
+        <!-- Login Tab -->
+        <div class="tab-pane active" id="tab-login">
+            <h2>Welcome back</h2>
+            <p class="sub">Sign in to your account</p>
+            <form id="login-form">
+                <div class="form-group">
+                    <label>Email address</label>
+                    <input type="email" id="login-email" placeholder="you@college.edu" required>
+                </div>
+                <div class="form-group">
+                    <label>Password</label>
+                    <input type="password" id="login-password" placeholder="Enter password" required>
+                </div>
+                <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;">
+                    Sign In
+                </button>
+            </form>
+            <div style="margin-top:14px;text-align:center;font-size:13px;color:var(--text-muted);">
+                Admin? Use your admin credentials above.
+            </div>
+        </div>
+
+        <!-- Register Tab (Students only) -->
+        <div class="tab-pane" id="tab-register">
+            <h2>Create account</h2>
+            <p class="sub">Register as a student</p>
+            <form id="register-form">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Full Name</label>
+                        <input type="text" id="reg-name" placeholder="Your full name" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Roll Number</label>
+                        <input type="text" id="reg-roll" placeholder="22ECE001" required>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Email address</label>
+                    <input type="email" id="reg-email" placeholder="you@college.edu" required>
+                </div>
+                <div class="form-group">
+                    <label>Password</label>
+                    <input type="password" id="reg-password" placeholder="Create a password" required>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Branch</label>
+                        <select id="reg-branch" required>
+                            <option value="">Select branch</option>
+                            <option>CSE</option>
+                            <option>ECE</option>
+                            <option>EEE</option>
+                            <option>ME</option>
+                            <option>CE</option>
+                            <option>IT</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Year</label>
+                        <select id="reg-year" required>
+                            <option value="">Select year</option>
+                            <option>1st Year</option>
+                            <option>2nd Year</option>
+                            <option>3rd Year</option>
+                            <option>4th Year</option>
+                        </select>
+                    </div>
+                </div>
+                <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;">
+                    Create Account
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script src="js/api.js"></script>
+<script>
+    // Redirect if already logged in
+    if (isLoggedIn()) {
+        const role = getRole();
+        window.location.href = role === 'ADMIN' ? 'pages/admin-dashboard.html' : 'pages/student-dashboard.html';
+    }
+
+    function switchTab(tab) {
+        document.querySelectorAll('.tab-btn').forEach((b, i) =>
+            b.classList.toggle('active', (tab === 'login' && i === 0) || (tab === 'register' && i === 1)));
+        document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+        document.getElementById('tab-' + tab).classList.add('active');
+    }
+
+    document.getElementById('login-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const btn = e.target.querySelector('button');
+        btn.disabled = true; btn.textContent = 'Signing in…';
+        try {
+            const data = await Auth.login(
+                document.getElementById('login-email').value,
+                document.getElementById('login-password').value
+            );
+            saveAuth(data);
+            showToast('Welcome back!', 'success');
+            setTimeout(() => {
+                window.location.href = data.role === 'ADMIN'
+                    ? 'pages/admin-dashboard.html'
+                    : 'pages/student-dashboard.html';
+            }, 600);
+        } catch (err) {
+            showToast(err.message, 'error');
+            btn.disabled = false; btn.textContent = 'Sign In';
+        }
+    });
+
+    document.getElementById('register-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const btn = e.target.querySelector('button');
+        btn.disabled = true; btn.textContent = 'Creating account…';
+        try {
+            const data = await Auth.register({
+                fullName:   document.getElementById('reg-name').value,
+                rollNumber: document.getElementById('reg-roll').value,
+                email:      document.getElementById('reg-email').value,
+                password:   document.getElementById('reg-password').value,
+                branch:     document.getElementById('reg-branch').value,
+                year:       document.getElementById('reg-year').value,
+            });
+            saveAuth(data);
+            showToast('Account created!', 'success');
+            setTimeout(() => window.location.href = 'pages/student-dashboard.html', 600);
+        } catch (err) {
+            showToast(err.message, 'error');
+            btn.disabled = false; btn.textContent = 'Create Account';
+        }
+    });
+</script>
+</body>
+</html>

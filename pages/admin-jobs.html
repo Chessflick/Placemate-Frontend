@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PlaceMate — Job Postings</title>
+    <link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+<div class="app-layout">
+    <aside class="sidebar">
+        <div class="sidebar-logo">
+            <div class="brand"><div class="brand-dot">🎓</div>PlaceMate</div>
+            <div class="sidebar-role">Admin Portal</div>
+        </div>
+        <nav class="sidebar-nav">
+            <div class="nav-section">Management</div>
+            <a href="admin-dashboard.html"><span class="icon">🏠</span> Dashboard</a>
+            <a href="admin-students.html"><span class="icon">👥</span> Students</a>
+            <a href="admin-companies.html"><span class="icon">🏢</span> Companies</a>
+            <a href="admin-jobs.html" class="active"><span class="icon">💼</span> Job Postings</a>
+            <a href="admin-applications.html"><span class="icon">📋</span> Applications</a>
+        </nav>
+        <div class="sidebar-bottom">
+            <div class="user-info">
+                <div class="avatar" style="background:#6366f1;">A</div>
+                <div><div style="font-weight:600;color:#e2e8f0;font-size:13px;">Admin</div><div style="font-size:11px;" id="sidebar-email"></div></div>
+            </div>
+            <div class="logout-btn" onclick="Auth.logout()">🚪 Logout</div>
+        </div>
+    </aside>
+
+    <div class="main-content">
+        <div class="topbar">
+            <div class="topbar-title">Job Postings</div>
+            <div class="topbar-actions">
+                <button class="btn btn-primary" onclick="openJobModal()">+ Post Job</button>
+            </div>
+        </div>
+
+        <div class="page-body">
+            <div class="card">
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Job Title</th>
+                                <th>Company</th>
+                                <th>CTC</th>
+                                <th>Location</th>
+                                <th>Last Date</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="jobs-tbody">
+                            <tr><td colspan="7" class="loader">Loading…</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Job Modal -->
+<div class="modal-overlay" id="job-modal">
+    <div class="modal">
+        <div class="modal-header">
+            <h3 id="modal-title">Post a Job</h3>
+            <button class="modal-close" onclick="closeModal('job-modal')">✕</button>
+        </div>
+        <div class="modal-body">
+            <input type="hidden" id="job-id">
+            <div class="form-group">
+                <label>Company *</label>
+                <select id="j-company"><option value="">Select company</option></select>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Job Title *</label>
+                    <input type="text" id="j-title" placeholder="Software Engineer">
+                </div>
+                <div class="form-group">
+                    <label>Job Type</label>
+                    <select id="j-type">
+                        <option>Full-time</option>
+                        <option>Internship</option>
+                        <option>Part-time</option>
+                        <option>Contract</option>
+                    </select>
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>CTC (LPA)</label>
+                    <input type="number" id="j-ctc" step="0.5" placeholder="12.5">
+                </div>
+                <div class="form-group">
+                    <label>Min. CGPA</label>
+                    <input type="number" id="j-cgpa" step="0.1" min="0" max="10" placeholder="7.0">
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Location</label>
+                    <input type="text" id="j-location" placeholder="Hyderabad, India">
+                </div>
+                <div class="form-group">
+                    <label>Last Date to Apply</label>
+                    <input type="date" id="j-lastdate">
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Eligibility Criteria</label>
+                <textarea id="j-eligibility" rows="2" placeholder="B.Tech CSE/ECE/IT with 7+ CGPA…"></textarea>
+            </div>
+            <div class="form-group">
+                <label>Job Description</label>
+                <textarea id="j-desc" rows="3" placeholder="Role overview, responsibilities…"></textarea>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-outline" onclick="closeModal('job-modal')">Cancel</button>
+            <button class="btn btn-primary" onclick="saveJob()">Save Job</button>
+        </div>
+    </div>
+</div>
+
+<script src="../js/api.js"></script>
+<script>
+    requireAuth('ADMIN');
+    document.getElementById('sidebar-email').textContent = getEmail();
+
+    let companies = [];
+
+    async function loadPage() {
+        try {
+            const [jobs, comps] = await Promise.all([JobsAPI.getAllJobs(), AdminAPI.getCompanies()]);
+            companies = comps;
+
+            const sel = document.getElementById('j-company');
+            sel.innerHTML = '<option value="">Select company</option>' +
+                comps.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+
+            renderJobs(jobs);
+        } catch (err) {
+            showToast(err.message, 'error');
+        }
+    }
+
+    function renderJobs(jobs) {
+        const tbody = document.getElementById('jobs-tbody');
+        if (!jobs.length) {
+            tbody.innerHTML = `<tr><td colspan="7"><div class="empty-state"><div class="empty-icon">💼</div><p>No jobs posted yet</p></div></td></tr>`;
+            return;
+        }
+        tbody.innerHTML = jobs.map(j => `
+            <tr>
+                <td><strong>${j.title}</strong></td>
+                <td>${j.companyName}</td>
+                <td>${j.ctc ? `₹${j.ctc} LPA` : '—'}</td>
+                <td>${j.location || '—'}</td>
+                <td>${fmtDate(j.lastDateToApply)}</td>
+                <td>${statusBadge(j.status)}</td>
+                <td style="display:flex;gap:6px;flex-wrap:wrap;">
+                    <button class="btn btn-outline btn-sm" onclick="editJob(${j.id})">Edit</button>
+                    <button class="btn btn-outline btn-sm" onclick="toggleStatus(${j.id})">${j.status === 'OPEN' ? 'Close' : 'Open'}</button>
+                    <button class="btn btn-danger btn-sm" onclick="deleteJob(${j.id}, '${j.title}')">Delete</button>
+                </td>
+            </tr>
+        `).join('');
+    }
+
+    function openJobModal(id) {
+        document.getElementById('modal-title').textContent = id ? 'Edit Job' : 'Post a Job';
+        document.getElementById('job-id').value = id || '';
+        if (!id) {
+            ['j-title','j-ctc','j-cgpa','j-location','j-lastdate','j-eligibility','j-desc'].forEach(i => document.getElementById(i).value = '');
+            document.getElementById('j-company').value = '';
+        }
+        openModal('job-modal');
+    }
+
+    async function editJob(id) {
+        try {
+            const j = await JobsAPI.getJobById(id);
+            document.getElementById('job-id').value       = j.id;
+            document.getElementById('j-company').value    = j.companyId;
+            document.getElementById('j-title').value      = j.title || '';
+            document.getElementById('j-type').value       = j.jobType || 'Full-time';
+            document.getElementById('j-ctc').value        = j.ctc || '';
+            document.getElementById('j-cgpa').value       = j.minCgpa || '';
+            document.getElementById('j-location').value   = j.location || '';
+            document.getElementById('j-lastdate').value   = j.lastDateToApply || '';
+            document.getElementById('j-eligibility').value= j.eligibility || '';
+            document.getElementById('j-desc').value       = j.description || '';
+            document.getElementById('modal-title').textContent = 'Edit Job';
+            openModal('job-modal');
+        } catch (err) {
+            showToast(err.message, 'error');
+        }
+    }
+
+    async function saveJob() {
+        const id = document.getElementById('job-id').value;
+        const data = {
+            companyId:       parseInt(document.getElementById('j-company').value),
+            title:           document.getElementById('j-title').value,
+            jobType:         document.getElementById('j-type').value,
+            ctc:             parseFloat(document.getElementById('j-ctc').value) || null,
+            minCgpa:         parseFloat(document.getElementById('j-cgpa').value) || null,
+            location:        document.getElementById('j-location').value,
+            lastDateToApply: document.getElementById('j-lastdate').value || null,
+            eligibility:     document.getElementById('j-eligibility').value,
+            description:     document.getElementById('j-desc').value,
+        };
+        if (!data.companyId || !data.title) { showToast('Company and title are required', 'error'); return; }
+        try {
+            id ? await JobsAPI.updateJob(id, data) : await JobsAPI.createJob(data);
+            showToast(id ? 'Job updated!' : 'Job posted!', 'success');
+            closeModal('job-modal');
+            loadPage();
+        } catch (err) {
+            showToast(err.message, 'error');
+        }
+    }
+
+    async function toggleStatus(id) {
+        try {
+            await JobsAPI.toggleStatus(id);
+            showToast('Status updated', 'success');
+            loadPage();
+        } catch (err) {
+            showToast(err.message, 'error');
+        }
+    }
+
+    async function deleteJob(id, title) {
+        if (!confirm(`Delete job "${title}"?`)) return;
+        try {
+            await JobsAPI.deleteJob(id);
+            showToast('Job deleted', 'success');
+            loadPage();
+        } catch (err) {
+            showToast(err.message, 'error');
+        }
+    }
+
+    loadPage();
+</script>
+</body>
+</html>
