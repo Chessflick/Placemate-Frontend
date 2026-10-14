@@ -1,4 +1,4 @@
-const API_BASE = 'http://localhost:8080/api';
+const API_BASE = 'https://placemate-backend-gngt.onrender.com/api';
 
 // ── Token helpers ──────────────────────────────────────────
 function getToken()  { return localStorage.getItem('pm_token'); }
